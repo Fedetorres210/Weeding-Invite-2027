@@ -991,11 +991,8 @@
   </div>
 </div>
 
-<!-- Audio via SoundCloud embed (más confiable que YouTube en sitios externos) -->
-<iframe id="scPlayer" width="0" height="0" scrolling="no" frameborder="no" allow="autoplay"
-  src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/1076226451&color=%23b8965a&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
-  style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;">
-</iframe>
+<!-- YouTube iframe para audio -->
+<div id="ytPlayer" style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;"></div>
 
 <div class="divider"></div>
 
@@ -1264,44 +1261,57 @@
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-  // MUSIC PLAYER (SoundCloud Widget API)
-  let scWidget = null;
+  // ── MUSIC PLAYER — YouTube IFrame API ────────────────────────
+  let ytPlayer = null;
   let isPlaying = false;
 
-  window.addEventListener('load', () => {
-    const iframe = document.getElementById('scPlayer');
-    if (window.SC && window.SC.Widget) {
-      scWidget = window.SC.Widget(iframe);
-      scWidget.bind(window.SC.Widget.Events.FINISH, () => {
-        scWidget.seekTo(0);
-        scWidget.play();
-      });
-    }
-  });
+  window.onYouTubeIframeAPIReady = function() {
+    ytPlayer = new YT.Player('ytPlayer', {
+      width: '1',
+      height: '1',
+      videoId: 'u2ah9tWTkmk',
+      playerVars: {
+        autoplay: 0,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        iv_load_policy: 3,
+        loop: 1,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+        playlist: 'u2ah9tWTkmk'
+      },
+      events: {
+        onStateChange: function(e) {
+          if (e.data === YT.PlayerState.ENDED) {
+            ytPlayer.seekTo(0);
+            ytPlayer.playVideo();
+          }
+        }
+      }
+    });
+  };
 
-  // Cargar SoundCloud Widget API
   (function() {
-    const sc = document.createElement('script');
-    sc.src = 'https://w.soundcloud.com/player/api.js';
-    sc.onload = () => {
-      const iframe = document.getElementById('scPlayer');
-      scWidget = window.SC.Widget(iframe);
-      scWidget.bind(window.SC.Widget.Events.FINISH, () => {
-        scWidget.seekTo(0); scWidget.play();
-      });
-    };
-    document.head.appendChild(sc);
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
   })();
 
   function toggleMusic() {
-    if (!scWidget) return;
-    if (isPlaying) {
-      scWidget.pause();
+    if (!ytPlayer || typeof ytPlayer.playVideo !== 'function') {
+      alert('El reproductor aún está cargando, intenta en un momento.');
+      return;
+    }
+    const state = ytPlayer.getPlayerState();
+    if (state === YT.PlayerState.PLAYING) {
+      ytPlayer.pauseVideo();
       document.getElementById('musicBtn').textContent = '▶';
       document.getElementById('musicBars').classList.add('paused');
       isPlaying = false;
     } else {
-      scWidget.play();
+      ytPlayer.playVideo();
       document.getElementById('musicBtn').textContent = '⏸';
       document.getElementById('musicBars').classList.remove('paused');
       isPlaying = true;
