@@ -1298,40 +1298,56 @@
   // ── SPOTIFY SEARCH ───────────────────────────────────────────
   const SPOTIFY_FN = 'https://wttqmlwrayotffeaeary.supabase.co/functions/v1/spotify-search';
   const spotifyTimers = {};
+  let currentAudio = null;
+  let currentPlayBtn = null;
+
+  function escStr(s) {
+    return (s || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  }
 
   async function spotifySearch(slot) {
     const q = document.getElementById(`spotifySearch${slot}`).value.trim();
     const resultsBox = document.getElementById(`spotifyResults${slot}`);
     clearTimeout(spotifyTimers[slot]);
-
     if (q.length < 2) { resultsBox.style.display = 'none'; return; }
 
     spotifyTimers[slot] = setTimeout(async () => {
       resultsBox.style.display = 'block';
       resultsBox.innerHTML = '<div style="padding:0.8rem 1rem;color:rgba(250,246,240,0.4);font-style:italic;font-size:0.9rem;">Buscando en Spotify...</div>';
-
       try {
         const res = await fetch(`${SPOTIFY_FN}?q=${encodeURIComponent(q)}`);
         const data = await res.json();
-
         if (!data.tracks || !data.tracks.length) {
           resultsBox.innerHTML = '<div style="padding:0.8rem 1rem;color:rgba(250,246,240,0.4);font-style:italic;font-size:0.9rem;">No se encontraron resultados.</div>';
           return;
         }
 
-        resultsBox.innerHTML = data.tracks.map(t => `
-          <div onclick="selectSong(${slot}, '${t.id}', ${JSON.stringify(`${t.title} — ${t.artist}`).replace(/'/g,"\\'")},'${t.image || ''}')"
-            style="display:flex;align-items:center;gap:0.8rem;padding:0.7rem 1rem;cursor:pointer;border-bottom:1px solid rgba(184,150,90,0.1);transition:background 0.2s;"
-            onmouseover="this.style.background='rgba(184,150,90,0.1)'"
+        // Guardar tracks en window para acceso desde onclick
+        window[`__tracks${slot}`] = data.tracks;
+
+        resultsBox.innerHTML = data.tracks.map((t, i) => `
+          <div style="display:flex;align-items:center;gap:0.8rem;padding:0.7rem 1rem;border-bottom:1px solid rgba(184,150,90,0.1);transition:background 0.2s;"
+            onmouseover="this.style.background='rgba(184,150,90,0.08)'"
             onmouseout="this.style.background='transparent'">
-            ${t.image
-              ? `<img src="${t.image}" style="width:40px;height:40px;object-fit:cover;flex-shrink:0;border:1px solid rgba(184,150,90,0.2);">`
-              : `<div style="width:40px;height:40px;background:rgba(184,150,90,0.1);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🎵</div>`
-            }
-            <div style="overflow:hidden;">
-              <div style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.title}</div>
-              <div style="font-size:0.8rem;color:rgba(250,246,240,0.5);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.artist} · ${t.album}</div>
+            <div style="position:relative;flex-shrink:0;width:42px;height:42px;">
+              ${t.image
+                ? `<img src="${t.image}" style="width:42px;height:42px;object-fit:cover;border:1px solid rgba(184,150,90,0.2);display:block;">`
+                : `<div style="width:42px;height:42px;background:rgba(184,150,90,0.1);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🎵</div>`
+              }
+              ${t.preview_url ? `
+              <button onclick="togglePreview(event,'${escStr(t.preview_url)}',this)"
+                title="Escuchar 30s"
+                style="position:absolute;inset:0;background:rgba(0,0,0,0.6);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#d4af76;font-size:1rem;"
+                data-playing="false">▶</button>` : ''}
             </div>
+            <div style="flex:1;overflow:hidden;cursor:pointer;" onclick="selectSong(${slot},${i})">
+              <div style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.title}</div>
+              <div style="font-size:0.78rem;color:rgba(250,246,240,0.5);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.artist} · ${t.album}</div>
+            </div>
+            <button onclick="selectSong(${slot},${i})"
+              style="flex-shrink:0;background:transparent;border:1px solid rgba(184,150,90,0.4);color:var(--gold-light);font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.25em;text-transform:uppercase;padding:0.35rem 0.7rem;cursor:pointer;white-space:nowrap;transition:all 0.2s;"
+              onmouseover="this.style.background='rgba(184,150,90,0.15)'"
+              onmouseout="this.style.background='transparent'">Elegir</button>
           </div>`).join('');
       } catch(e) {
         resultsBox.innerHTML = '<div style="padding:0.8rem 1rem;color:#e07070;font-size:0.9rem;">Error al buscar. Intenta de nuevo.</div>';
@@ -1339,40 +1355,100 @@
     }, 400);
   }
 
-  function selectSong(slot, id, label, image) {
-    // Guardar valor en hidden input
+  function togglePreview(e, url, btn) {
+    e.stopPropagation();
+    const playing = btn.dataset.playing === 'true';
+    // Parar audio anterior
+    if (currentAudio && currentPlayBtn && currentPlayBtn !== btn) {
+      currentAudio.pause();
+      currentPlayBtn.textContent = '▶';
+      currentPlayBtn.dataset.playing = 'false';
+    }
+    if (playing) {
+      currentAudio.pause();
+      btn.textContent = '▶';
+      btn.dataset.playing = 'false';
+    } else {
+      currentAudio = new Audio(url);
+      currentAudio.volume = 0.75;
+      currentAudio.onended = () => { btn.textContent = '▶'; btn.dataset.playing = 'false'; };
+      currentAudio.play();
+      btn.textContent = '⏸';
+      btn.dataset.playing = 'true';
+      currentPlayBtn = btn;
+    }
+  }
+
+  function selectSong(slot, idx) {
+    const t = window[`__tracks${slot}`][idx];
+    if (!t) return;
+
+    // Parar preview si suena
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; currentPlayBtn = null; }
+
+    const label = `${t.title} — ${t.artist}`;
     document.getElementById(`cancion${slot}`).value = label;
 
-    // Limpiar búsqueda
+    // Ocultar búsqueda y resultados
     document.getElementById(`spotifySearch${slot}`).value = '';
     document.getElementById(`spotifyResults${slot}`).style.display = 'none';
+    document.getElementById(`spotifyResults${slot}`).innerHTML = '';
 
-    // Mostrar canción seleccionada
+    // Mostrar tarjeta de selección
     const box = document.getElementById(`selectedSong${slot}`);
-    box.style.display = 'flex';
-    box.style.alignItems = 'center';
-    box.style.gap = '0.8rem';
-    box.style.padding = '0.7rem 1rem';
-    box.style.marginTop = '0.4rem';
-    box.style.background = 'rgba(184,150,90,0.08)';
-    box.style.border = '1px solid rgba(184,150,90,0.3)';
+    box.style.cssText = 'display:flex;align-items:center;gap:0.8rem;padding:0.7rem 1rem;margin-top:0.5rem;background:rgba(184,150,90,0.08);border:1px solid rgba(184,150,90,0.35);';
     box.innerHTML = `
-      ${image
-        ? `<img src="${image}" style="width:36px;height:36px;object-fit:cover;border:1px solid rgba(184,150,90,0.3);flex-shrink:0;">`
-        : `<div style="width:36px;height:36px;background:rgba(184,150,90,0.1);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">🎵</div>`
-      }
-      <div style="flex:1;overflow:hidden;">
-        <div style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
+      <div style="position:relative;flex-shrink:0;width:44px;height:44px;">
+        ${t.image
+          ? `<img src="${t.image}" style="width:44px;height:44px;object-fit:cover;border:1px solid rgba(184,150,90,0.3);display:block;">`
+          : `<div style="width:44px;height:44px;background:rgba(184,150,90,0.1);display:flex;align-items:center;justify-content:center;font-size:1.3rem;">🎵</div>`
+        }
+        ${t.preview_url ? `
+        <button onclick="toggleSlotPreview('${escStr(t.preview_url)}',this)"
+          title="Escuchar 30s"
+          style="position:absolute;inset:0;background:rgba(0,0,0,0.6);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#d4af76;font-size:1rem;"
+          data-playing="false">▶</button>` : ''}
       </div>
-      <button onclick="clearSong(${slot})" style="background:none;border:none;color:rgba(250,246,240,0.4);cursor:pointer;font-size:0.8rem;font-family:'Cinzel',serif;letter-spacing:0.2em;flex-shrink:0;">✕</button>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.5rem;font-family:'Cinzel',serif;letter-spacing:0.35em;color:var(--gold);text-transform:uppercase;margin-bottom:0.2rem;">Canción ${slot}</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.title}</div>
+        <div style="font-size:0.78rem;color:rgba(250,246,240,0.5);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.artist}</div>
+      </div>
+      <button onclick="clearSong(${slot})"
+        title="Quitar"
+        style="flex-shrink:0;background:none;border:none;color:rgba(250,246,240,0.35);cursor:pointer;font-size:1rem;line-height:1;padding:0.2rem 0.4rem;transition:color 0.2s;"
+        onmouseover="this.style.color='#e07070'" onmouseout="this.style.color='rgba(250,246,240,0.35)'">✕</button>
     `;
   }
 
+  function toggleSlotPreview(url, btn) {
+    const playing = btn.dataset.playing === 'true';
+    if (currentAudio && currentPlayBtn && currentPlayBtn !== btn) {
+      currentAudio.pause();
+      currentPlayBtn.textContent = '▶';
+      currentPlayBtn.dataset.playing = 'false';
+    }
+    if (playing) {
+      currentAudio.pause();
+      btn.textContent = '▶';
+      btn.dataset.playing = 'false';
+    } else {
+      currentAudio = new Audio(url);
+      currentAudio.volume = 0.75;
+      currentAudio.onended = () => { btn.textContent = '▶'; btn.dataset.playing = 'false'; };
+      currentAudio.play();
+      btn.textContent = '⏸';
+      btn.dataset.playing = 'true';
+      currentPlayBtn = btn;
+    }
+  }
+
   function clearSong(slot) {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; currentPlayBtn = null; }
     document.getElementById(`cancion${slot}`).value = '';
-    document.getElementById(`selectedSong${slot}`).style.display = 'none';
-    document.getElementById(`selectedSong${slot}`).innerHTML = '';
-    document.getElementById(`spotifySearch${slot}`).value = '';
+    const box = document.getElementById(`selectedSong${slot}`);
+    box.style.display = 'none';
+    box.innerHTML = '';
   }
   let ytPlayer = null;
   let isPlaying = false;
