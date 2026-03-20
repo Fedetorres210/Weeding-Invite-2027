@@ -478,6 +478,30 @@ select.form-input { -webkit-appearance:none; cursor:pointer; }
   </div>
 </div>
 
+<!-- MODAL: Editar categoría -->
+<div class="modal-overlay" id="modal-editCategory">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Editar Categoría</h3>
+      <button class="modal-close" onclick="closeModal('editCategory')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ec_id">
+      <div class="form-row full">
+        <div class="form-field"><label class="form-label">Nombre *</label><input class="form-input" id="ec_nombre"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Presupuesto (USD) *</label><input class="form-input" id="ec_presupuesto" type="number"></div>
+        <div class="form-field"><label class="form-label">Color</label><input class="form-input" id="ec_color" type="color" style="height:40px;padding:0.3rem;cursor:pointer;"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('editCategory')">Cancelar</button>
+      <button class="btn btn-primary" onclick="updateCategory()">Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Agregar gasto -->
 <div class="modal-overlay" id="modal-addExpense">
   <div class="modal">
@@ -751,20 +775,24 @@ function renderFinance() {
       <span class="stat-badge badge-red">Pendiente</span>
     </div>`;
 
-  // Categorías
+  // Categorías con botones de editar y eliminar
   document.getElementById('categoriesList').innerHTML = categories.map(cat => {
     const spent = expenses.filter(e => e.categoria_id === cat.id && e.moneda === 'USD').reduce((a, e) => a + parseFloat(e.monto), 0);
     const pct = cat.presupuesto > 0 ? Math.min(100, Math.round(spent / cat.presupuesto * 100)) : 0;
     const over = spent > cat.presupuesto;
     return `<div class="cat-item">
       <div class="cat-dot" style="background:${cat.color}"></div>
-      <div style="flex:1;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;gap:0.5rem;">
           <span class="cat-name">${cat.nombre}</span>
-          <span class="cat-amounts">
-            <span class="cat-spent" style="color:${over?'var(--red)':'var(--text)'}">$${spent.toLocaleString()}</span>
-            <span class="cat-budget"> / $${parseFloat(cat.presupuesto).toLocaleString()}</span>
-          </span>
+          <div style="display:flex;align-items:center;gap:0.4rem;flex-shrink:0;">
+            <span class="cat-amounts">
+              <span class="cat-spent" style="color:${over?'var(--red)':'var(--text)'}">$${spent.toLocaleString()}</span>
+              <span class="cat-budget"> / $${parseFloat(cat.presupuesto).toLocaleString()}</span>
+            </span>
+            <button class="btn" style="font-size:0.5rem;padding:0.25rem 0.5rem;" onclick="openEditCategory('${cat.id}')">✏</button>
+            <button class="btn btn-danger" style="font-size:0.5rem;padding:0.25rem 0.5rem;" onclick="deleteCategory('${cat.id}')">✕</button>
+          </div>
         </div>
         <div class="progress-bar">
           <div class="progress-fill" style="width:${pct}%;background:${over?'var(--red)':cat.color};"></div>
@@ -808,11 +836,74 @@ function renderReports() {
     ? `<table><thead><tr><th>Invitado</th><th>Restricción</th></tr></thead><tbody>${diets.map(d => `<tr><td>${d.nombre}</td><td>${d.restriccion}</td></tr>`).join('')}</tbody></table>`
     : '<div class="empty">Sin restricciones registradas.</div>';
 
-  // Top songs
+  // Top canciones con conteo, buscador y ordenamiento
+  renderTopSongs();
+}
+
+// Estado del top canciones
+let topSongsOrder = 'desc'; // 'desc' = más solicitadas primero
+
+function renderTopSongs(searchQ = '') {
+  const el = document.getElementById('topSongs');
   const allSongs = songs.flatMap(s => [s.cancion_1, s.cancion_2, s.cancion_3].filter(Boolean));
-  document.getElementById('topSongs').innerHTML = allSongs.length
-    ? `<div style="padding:1rem 1.5rem;">${allSongs.map((s, i) => `<div style="padding:0.6rem 0;border-bottom:1px solid rgba(184,150,90,0.08);font-size:0.9rem;">🎵 ${s}</div>`).join('')}</div>`
-    : '<div class="empty">Sin canciones solicitadas aún.</div>';
+
+  if (!allSongs.length) { el.innerHTML = '<div class="empty">Sin canciones solicitadas aún.</div>'; return; }
+
+  // Contar solicitudes por canción (case-insensitive)
+  const counts = {};
+  allSongs.forEach(s => {
+    const key = s.trim().toLowerCase();
+    if (!counts[key]) counts[key] = { label: s, count: 0 };
+    counts[key].count++;
+  });
+
+  // Filtrar por búsqueda
+  let list = Object.values(counts);
+  if (searchQ.trim()) {
+    const q = searchQ.trim().toLowerCase();
+    list = list.filter(c => c.label.toLowerCase().includes(q));
+  }
+
+  // Ordenar
+  list.sort((a, b) => topSongsOrder === 'desc' ? b.count - a.count : a.count - b.count);
+
+  el.innerHTML = `
+    <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--gold-pale);display:flex;gap:0.7rem;align-items:center;flex-wrap:wrap;">
+      <input type="text" class="search-input" placeholder="Buscar canción..." style="flex:1;min-width:180px;"
+        oninput="renderTopSongs(this.value)" id="songSearchInput">
+      <button class="btn" onclick="toggleSongOrder()" id="songOrderBtn"
+        style="white-space:nowrap;display:flex;align-items:center;gap:0.4rem;">
+        ${topSongsOrder === 'desc' ? '↓ Más solicitadas' : '↑ Menos solicitadas'}
+      </button>
+      <span style="font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.3em;color:var(--text-l);">
+        ${list.length} canción${list.length !== 1 ? 'es' : ''}
+      </span>
+    </div>
+    ${list.length ? list.map((c, i) => {
+      const maxCount = Math.max(...Object.values(counts).map(x => x.count));
+      const pct = Math.round((c.count / maxCount) * 100);
+      return `<div style="padding:0.75rem 1.5rem;border-bottom:1px solid rgba(184,150,90,0.07);display:flex;align-items:center;gap:1rem;">
+        <span style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--text-l);width:22px;text-align:right;flex-shrink:0;">${i+1}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem;">
+            <span style="font-size:0.88rem;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:75%;">${c.label}</span>
+            <span style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.2em;color:var(--gold);flex-shrink:0;margin-left:0.5rem;">
+              ${c.count} ${c.count === 1 ? 'vez' : 'veces'}
+            </span>
+          </div>
+          <div style="height:4px;background:var(--gold-pale);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:var(--gold);border-radius:2px;transition:width 0.4s ease;"></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty" style="padding:2rem;">No hay canciones que coincidan con la búsqueda.</div>'}
+  `;
+}
+
+function toggleSongOrder() {
+  topSongsOrder = topSongsOrder === 'desc' ? 'asc' : 'desc';
+  const q = document.getElementById('songSearchInput')?.value || '';
+  renderTopSongs(q);
 }
 
 // ── CHARTS ────────────────────────────────────────────────────
@@ -971,6 +1062,41 @@ async function saveCategory() {
   await supa('/rest/v1/presupuesto_categorias', { method:'POST', body: JSON.stringify({ nombre, presupuesto, color }) });
   closeModal('addCategory');
   document.getElementById('cat_nombre').value = ''; document.getElementById('cat_presupuesto').value = '';
+  await loadAll();
+}
+
+function openEditCategory(id) {
+  const cat = categories.find(c => c.id === id);
+  if (!cat) return;
+  document.getElementById('ec_id').value = cat.id;
+  document.getElementById('ec_nombre').value = cat.nombre;
+  document.getElementById('ec_presupuesto').value = cat.presupuesto;
+  document.getElementById('ec_color').value = cat.color || '#b8965a';
+  openModal('editCategory');
+}
+
+async function updateCategory() {
+  const id = document.getElementById('ec_id').value;
+  const nombre = document.getElementById('ec_nombre').value.trim();
+  const presupuesto = parseFloat(document.getElementById('ec_presupuesto').value);
+  const color = document.getElementById('ec_color').value;
+  if (!nombre || !presupuesto) return;
+  await fetch(`${SUPA_URL}/rest/v1/presupuesto_categorias?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ nombre, presupuesto, color })
+  });
+  closeModal('editCategory');
+  await loadAll();
+}
+
+async function deleteCategory(id) {
+  const cat = categories.find(c => c.id === id);
+  if (!confirm(`¿Eliminar la categoría "${cat?.nombre}"? Los gastos asociados quedarán sin categoría.`)) return;
+  await fetch(`${SUPA_URL}/rest/v1/presupuesto_categorias?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
+  });
   await loadAll();
 }
 
