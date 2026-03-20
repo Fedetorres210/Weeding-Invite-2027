@@ -196,7 +196,73 @@ select.form-input { -webkit-appearance:none; cursor:pointer; }
 .songs-list { font-size:0.85rem; color:var(--text-l); }
 .songs-list span { display:block; padding:0.1rem 0; }
 
-/* LOADING */
+/* SPOTIFY PLAYER */
+.sp-player {
+  background: #121212; border-radius: 8px; overflow: hidden;
+  font-family: 'Inter', sans-serif;
+}
+.sp-now-playing {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 1.2rem 1.5rem;
+  display: flex; align-items: center; gap: 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sp-now-playing.inactive { opacity: 0.4; }
+.sp-cover-wrap { position: relative; flex-shrink: 0; width: 52px; height: 52px; }
+.sp-cover { width: 52px; height: 52px; object-fit: cover; border-radius: 4px; display: block; }
+.sp-cover-placeholder {
+  width: 52px; height: 52px; background: rgba(255,255,255,0.08);
+  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+}
+.sp-spinning { animation: spSpin 3s linear infinite; }
+@keyframes spSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.sp-info { flex: 1; min-width: 0; }
+.sp-song-title { font-size: 0.9rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-song-artist { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-top: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.sp-btn {
+  background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.6);
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%; transition: all 0.2s; font-size: 0.8rem;
+}
+.sp-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.sp-btn-play {
+  width: 36px; height: 36px; background: #1db954; color: #000;
+  border-radius: 50%; font-size: 0.9rem;
+}
+.sp-btn-play:hover { background: #1ed760; transform: scale(1.05); }
+.sp-progress-wrap { padding: 0.5rem 1.5rem 0.8rem; background: #121212; }
+.sp-progress-bar {
+  height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px;
+  cursor: pointer; position: relative; margin: 0.3rem 0;
+}
+.sp-progress-fill { height: 100%; background: #1db954; border-radius: 2px; transition: width 0.5s linear; pointer-events: none; }
+.sp-time { display: flex; justify-content: space-between; font-size: 0.65rem; color: rgba(255,255,255,0.4); }
+.sp-queue { max-height: 320px; overflow-y: auto; }
+.sp-queue::-webkit-scrollbar { width: 4px; }
+.sp-queue::-webkit-scrollbar-track { background: transparent; }
+.sp-queue::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.sp-track {
+  display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 1rem;
+  cursor: pointer; transition: background 0.15s; border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.sp-track:hover { background: rgba(255,255,255,0.06); }
+.sp-track.playing { background: rgba(29,185,84,0.1); }
+.sp-track-num {
+  width: 20px; text-align: center; font-size: 0.75rem;
+  color: rgba(255,255,255,0.3); flex-shrink: 0;
+}
+.sp-track.playing .sp-track-num { color: #1db954; }
+.sp-track-cover { width: 36px; height: 36px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+.sp-track-cover-ph { width: 36px; height: 36px; background: rgba(255,255,255,0.08); border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+.sp-track-info { flex: 1; min-width: 0; }
+.sp-track-name { font-size: 0.85rem; color: rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-track.playing .sp-track-name { color: #1db954; }
+.sp-track-meta { font-size: 0.72rem; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-no-preview { font-size: 0.6rem; color: rgba(255,255,255,0.2); flex-shrink: 0; }
+
+/* EDIT MODAL */
 .loading { padding:2rem; text-align:center; color:var(--text-l); font-size:0.85rem; font-style:italic; }
 </style>
 </head>
@@ -409,6 +475,52 @@ select.form-input { -webkit-appearance:none; cursor:pointer; }
   </div>
 </div>
 
+<!-- MODAL: Editar invitado -->
+<div class="modal-overlay" id="modal-editGuest">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Editar Invitado</h3>
+      <button class="modal-close" onclick="closeModal('editGuest')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="eg_cedula_original">
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Primer nombre *</label><input class="form-input" id="eg_primer_nombre"></div>
+        <div class="form-field"><label class="form-label">Segundo nombre</label><input class="form-input" id="eg_segundo_nombre"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Primer apellido *</label><input class="form-input" id="eg_primer_apellido"></div>
+        <div class="form-field"><label class="form-label">Segundo apellido</label><input class="form-input" id="eg_segundo_apellido"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Cédula (ID) *</label><input class="form-input" id="eg_cedula"></div>
+        <div class="form-field"><label class="form-label">Teléfono</label><input class="form-input" id="eg_telefono"></div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field"><label class="form-label">Correo electrónico</label><input class="form-input" id="eg_correo" type="email"></div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field">
+          <label class="form-label">Estado de asistencia</label>
+          <select class="form-input" id="eg_asistencia">
+            <option value="pendiente">Pendiente</option>
+            <option value="confirmado">Confirmado</option>
+            <option value="no_confirmado">No asiste</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field"><label class="form-label">Restricción alimentaria</label><input class="form-input" id="eg_restriccion" placeholder="Opcional"></div>
+      </div>
+      <p id="editGuestError" style="color:var(--red);font-size:0.8rem;margin-top:0.5rem;display:none;"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('editGuest')">Cancelar</button>
+      <button class="btn btn-primary" onclick="updateGuest()">Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Agregar categoría -->
 <div class="modal-overlay" id="modal-addCategory">
   <div class="modal">
@@ -575,7 +687,7 @@ function renderStats() {
 // ── GUEST TABLE ───────────────────────────────────────────────
 function renderGuestTable(list) {
   const tbody = document.getElementById('guestTableBody');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay invitados registrados.</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay invitados registrados.</td></tr>'; return; }
   tbody.innerHTML = list.map(g => {
     const nombre = [g.primer_nombre, g.segundo_nombre, g.primer_apellido, g.segundo_apellido].filter(Boolean).join(' ');
     const pill = g.asistencia === 'confirmado' ? 'pill-confirmed' : g.asistencia === 'no_confirmado' ? 'pill-no' : 'pill-pending';
@@ -586,7 +698,8 @@ function renderGuestTable(list) {
       <td style="font-size:0.82rem;">${g.correo || '—'}</td>
       <td style="font-size:0.82rem;">${g.telefono || '—'}</td>
       <td><span class="status-pill ${pill}">${label}</span></td>
-      <td>
+      <td style="white-space:nowrap;">
+        <button class="btn" style="font-size:0.5rem;padding:0.3rem 0.6rem;margin-right:0.3rem;" onclick="openEditGuest('${g.cedula}')">✏ Editar</button>
         <button class="btn btn-danger" style="font-size:0.5rem;padding:0.3rem 0.6rem;" onclick="deleteGuest('${g.cedula}')">Eliminar</button>
       </td>
     </tr>`;
@@ -617,18 +730,165 @@ function renderComments() {
   }).join('');
 }
 
-function renderSongs() {
+// ── SPOTIFY PLAYER ────────────────────────────────────────────
+const SPOTIFY_FN = 'https://wttqmlwrayotffeaeary.supabase.co/functions/v1/spotify-search';
+let spAudio = null;
+let spCurrentIdx = -1;
+let spPlaylist = []; // [{label, image, preview_url, guest}]
+let spProgressTimer = null;
+
+async function renderSongs() {
   const el = document.getElementById('songsList');
   const withSongs = songs.filter(s => s.cancion_1 || s.cancion_2 || s.cancion_3);
   if (!withSongs.length) { el.innerHTML = '<div class="empty">Sin solicitudes aún.</div>'; return; }
-  el.innerHTML = withSongs.map(s => {
-    const autor = s.invitados ? `${s.invitados.primer_nombre} ${s.invitados.primer_apellido}` : 'Invitado';
-    const lista = [s.cancion_1, s.cancion_2, s.cancion_3].filter(Boolean);
-    return `<div class="comment-item">
-      <p class="comment-author">${autor}</p>
-      <div class="songs-list">${lista.map((c,i) => `<span>🎵 ${c}</span>`).join('')}</div>
+
+  // Build flat track list with guest info
+  el.innerHTML = '<div class="loading">Cargando canciones desde Spotify...</div>';
+
+  const rawTracks = [];
+  withSongs.forEach(s => {
+    const guest = s.invitados ? `${s.invitados.primer_nombre} ${s.invitados.primer_apellido}` : 'Invitado';
+    [s.cancion_1, s.cancion_2, s.cancion_3].filter(Boolean).forEach(label => {
+      rawTracks.push({ label, guest });
+    });
+  });
+
+  // Fetch Spotify metadata for each unique track
+  const enriched = await Promise.all(rawTracks.map(async t => {
+    try {
+      const res = await fetch(`${SPOTIFY_FN}?q=${encodeURIComponent(t.label)}`);
+      const data = await res.json();
+      const track = data.tracks?.[0];
+      return { ...t, image: track?.image || null, preview_url: track?.preview_url || null, title: track?.title || t.label, artist: track?.artist || '' };
+    } catch { return { ...t, image: null, preview_url: null, title: t.label, artist: '' }; }
+  }));
+
+  spPlaylist = enriched;
+  renderSpotifyPlayer(el, enriched);
+}
+
+function renderSpotifyPlayer(el, tracks) {
+  el.innerHTML = `
+    <div class="sp-player">
+      <div class="sp-now-playing inactive" id="spNowPlaying">
+        <div class="sp-cover-wrap">
+          <div class="sp-cover-placeholder" id="spCoverWrap">🎵</div>
+        </div>
+        <div class="sp-info">
+          <div class="sp-song-title" id="spTitle">Sin reproducción</div>
+          <div class="sp-song-artist" id="spArtist">Selecciona una canción</div>
+        </div>
+        <div class="sp-controls">
+          <button class="sp-btn" onclick="spPrev()" title="Anterior">&#9664;&#9664;</button>
+          <button class="sp-btn sp-btn-play" id="spPlayBtn" onclick="spToggle()">&#9654;</button>
+          <button class="sp-btn" onclick="spNext()" title="Siguiente">&#9654;&#9654;</button>
+        </div>
+      </div>
+      <div class="sp-progress-wrap">
+        <div class="sp-progress-bar" id="spProgressBar" onclick="spSeek(event)">
+          <div class="sp-progress-fill" id="spProgress" style="width:0%"></div>
+        </div>
+        <div class="sp-time"><span id="spCurrent">0:00</span><span id="spDuration">0:30</span></div>
+      </div>
+      <div class="sp-queue" id="spQueue">
+        ${tracks.map((t, i) => `
+          <div class="sp-track" id="spTrack${i}" onclick="spPlay(${i})">
+            <div class="sp-track-num">${i+1}</div>
+            ${t.image
+              ? `<img class="sp-track-cover" src="${t.image}" alt="">`
+              : `<div class="sp-track-cover-ph">🎵</div>`}
+            <div class="sp-track-info">
+              <div class="sp-track-name">${t.title}</div>
+              <div class="sp-track-meta">${t.artist ? t.artist + ' · ' : ''}${t.guest}</div>
+            </div>
+            ${!t.preview_url ? '<span class="sp-no-preview">sin preview</span>' : ''}
+          </div>`).join('')}
+      </div>
     </div>`;
-  }).join('');
+}
+
+function spPlay(idx) {
+  if (idx < 0 || idx >= spPlaylist.length) return;
+  const t = spPlaylist[idx];
+
+  // Update UI — highlight track
+  document.querySelectorAll('.sp-track').forEach((el, i) => el.classList.toggle('playing', i === idx));
+  spCurrentIdx = idx;
+
+  // Update now playing bar
+  const np = document.getElementById('spNowPlaying');
+  np.classList.remove('inactive');
+  document.getElementById('spTitle').textContent = t.title;
+  document.getElementById('spArtist').textContent = t.artist ? `${t.artist} · ${t.guest}` : t.guest;
+  const cw = document.getElementById('spCoverWrap');
+  cw.outerHTML = t.image
+    ? `<img class="sp-cover sp-spinning" id="spCoverWrap" src="${t.image}" alt="">`
+    : `<div class="sp-cover-placeholder" id="spCoverWrap">🎵</div>`;
+
+  if (!t.preview_url) {
+    document.getElementById('spPlayBtn').textContent = '▶';
+    clearInterval(spProgressTimer);
+    document.getElementById('spProgress').style.width = '0%';
+    document.getElementById('spCurrent').textContent = '0:00';
+    return;
+  }
+
+  // Stop previous
+  if (spAudio) { spAudio.pause(); spAudio = null; }
+  clearInterval(spProgressTimer);
+
+  spAudio = new Audio(t.preview_url);
+  spAudio.volume = 0.8;
+  spAudio.play();
+  document.getElementById('spPlayBtn').innerHTML = '&#9646;&#9646;';
+
+  spAudio.onended = () => { spNext(); };
+
+  spProgressTimer = setInterval(() => {
+    if (!spAudio || !spAudio.duration) return;
+    const pct = (spAudio.currentTime / spAudio.duration) * 100;
+    document.getElementById('spProgress').style.width = pct + '%';
+    document.getElementById('spCurrent').textContent = fmtTime(spAudio.currentTime);
+    document.getElementById('spDuration').textContent = fmtTime(spAudio.duration);
+  }, 300);
+}
+
+function spToggle() {
+  if (spCurrentIdx === -1) { spPlay(0); return; }
+  if (!spAudio) { spPlay(spCurrentIdx); return; }
+  if (spAudio.paused) {
+    spAudio.play();
+    document.getElementById('spPlayBtn').innerHTML = '&#9646;&#9646;';
+    const cw = document.getElementById('spCoverWrap');
+    if (cw.tagName === 'IMG') cw.classList.add('sp-spinning');
+  } else {
+    spAudio.pause();
+    document.getElementById('spPlayBtn').innerHTML = '&#9654;';
+    const cw = document.getElementById('spCoverWrap');
+    if (cw.tagName === 'IMG') cw.classList.remove('sp-spinning');
+  }
+}
+
+function spNext() {
+  const next = (spCurrentIdx + 1) % spPlaylist.length;
+  spPlay(next);
+}
+function spPrev() {
+  const prev = (spCurrentIdx - 1 + spPlaylist.length) % spPlaylist.length;
+  spPlay(prev);
+}
+
+function spSeek(e) {
+  if (!spAudio || !spAudio.duration) return;
+  const bar = document.getElementById('spProgressBar');
+  const pct = e.offsetX / bar.offsetWidth;
+  spAudio.currentTime = pct * spAudio.duration;
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
 // ── FINANCE ───────────────────────────────────────────────────
@@ -815,6 +1075,53 @@ async function saveGuest() {
     await supa('/rest/v1/invitados', { method:'POST', body: JSON.stringify(fields) });
     closeModal('addGuest');
     ['g_primer_nombre','g_segundo_nombre','g_primer_apellido','g_segundo_apellido','g_cedula','g_telefono','g_correo'].forEach(id => document.getElementById(id).value = '');
+    await loadAll();
+  } catch(e) { err.textContent = 'Error: ' + e.message; err.style.display = 'block'; }
+}
+
+function openEditGuest(cedula) {
+  const g = guests.find(g => g.cedula === cedula);
+  if (!g) return;
+  document.getElementById('eg_cedula_original').value = g.cedula;
+  document.getElementById('eg_primer_nombre').value = g.primer_nombre || '';
+  document.getElementById('eg_segundo_nombre').value = g.segundo_nombre || '';
+  document.getElementById('eg_primer_apellido').value = g.primer_apellido || '';
+  document.getElementById('eg_segundo_apellido').value = g.segundo_apellido || '';
+  document.getElementById('eg_cedula').value = g.cedula;
+  document.getElementById('eg_telefono').value = g.telefono || '';
+  document.getElementById('eg_correo').value = g.correo || '';
+  document.getElementById('eg_asistencia').value = g.asistencia || 'pendiente';
+  document.getElementById('eg_restriccion').value = g.restriccion_alimentaria || '';
+  document.getElementById('editGuestError').style.display = 'none';
+  openModal('editGuest');
+}
+
+async function updateGuest() {
+  const cedulaOriginal = document.getElementById('eg_cedula_original').value;
+  const err = document.getElementById('editGuestError');
+  const body = {
+    primer_nombre: document.getElementById('eg_primer_nombre').value.trim(),
+    segundo_nombre: document.getElementById('eg_segundo_nombre').value.trim() || null,
+    primer_apellido: document.getElementById('eg_primer_apellido').value.trim(),
+    segundo_apellido: document.getElementById('eg_segundo_apellido').value.trim() || null,
+    cedula: document.getElementById('eg_cedula').value.trim(),
+    telefono: document.getElementById('eg_telefono').value.trim() || null,
+    correo: document.getElementById('eg_correo').value.trim() || null,
+    asistencia: document.getElementById('eg_asistencia').value,
+    restriccion_alimentaria: document.getElementById('eg_restriccion').value.trim() || null,
+  };
+  if (!body.primer_nombre || !body.primer_apellido || !body.cedula) {
+    err.textContent = 'Nombre, apellido y cédula son requeridos.';
+    err.style.display = 'block'; return;
+  }
+  err.style.display = 'none';
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/invitados?cedula=eq.${cedulaOriginal}`, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(body)
+    });
+    closeModal('editGuest');
     await loadAll();
   } catch(e) { err.textContent = 'Error: ' + e.message; err.style.display = 'block'; }
 }
