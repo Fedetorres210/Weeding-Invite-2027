@@ -866,17 +866,51 @@
             style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;">
         </div>
 
-        <!-- Canciones -->
+        <!-- Canciones con búsqueda Spotify -->
         <div style="border-top:1px solid rgba(184,150,90,0.2);padding-top:1.5rem;margin-top:0.5rem;">
           <p class="field-label" style="margin-bottom:0.3rem;">🎵 &nbsp; Tus canciones para la fiesta</p>
-          <p style="font-size:0.85rem;color:rgba(250,246,240,0.5);font-style:italic;margin-bottom:1rem;">Agrega hasta 3 canciones que te gustaría escuchar</p>
-          <div style="display:flex;flex-direction:column;gap:0.8rem;">
-            <input type="text" id="cancion1" placeholder="Canción 1 · Artista - Título"
-              style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;">
-            <input type="text" id="cancion2" placeholder="Canción 2 · Artista - Título (opcional)"
-              style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;">
-            <input type="text" id="cancion3" placeholder="Canción 3 · Artista - Título (opcional)"
-              style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;">
+          <p style="font-size:0.85rem;color:rgba(250,246,240,0.5);font-style:italic;margin-bottom:1.2rem;">Busca y selecciona hasta 3 canciones que te gustaría escuchar</p>
+
+          <!-- Slot 1 -->
+          <div style="margin-bottom:1rem;">
+            <div style="position:relative;">
+              <input type="text" id="spotifySearch1" placeholder="Buscar canción 1..."
+                oninput="spotifySearch(1)"
+                autocomplete="off"
+                style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem 0.9rem 2.8rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;transition:border-color 0.3s;">
+              <span style="position:absolute;left:0.9rem;top:50%;transform:translateY(-50%);font-size:0.9rem;opacity:0.5;">🔍</span>
+            </div>
+            <div id="spotifyResults1" style="display:none;background:rgba(20,14,8,0.97);border:1px solid rgba(184,150,90,0.25);border-top:none;max-height:260px;overflow-y:auto;"></div>
+            <div id="selectedSong1" style="display:none;"></div>
+            <input type="hidden" id="cancion1" value="">
+          </div>
+
+          <!-- Slot 2 -->
+          <div style="margin-bottom:1rem;">
+            <div style="position:relative;">
+              <input type="text" id="spotifySearch2" placeholder="Buscar canción 2 (opcional)..."
+                oninput="spotifySearch(2)"
+                autocomplete="off"
+                style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem 0.9rem 2.8rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;transition:border-color 0.3s;">
+              <span style="position:absolute;left:0.9rem;top:50%;transform:translateY(-50%);font-size:0.9rem;opacity:0.5;">🔍</span>
+            </div>
+            <div id="spotifyResults2" style="display:none;background:rgba(20,14,8,0.97);border:1px solid rgba(184,150,90,0.25);border-top:none;max-height:260px;overflow-y:auto;"></div>
+            <div id="selectedSong2" style="display:none;"></div>
+            <input type="hidden" id="cancion2" value="">
+          </div>
+
+          <!-- Slot 3 -->
+          <div>
+            <div style="position:relative;">
+              <input type="text" id="spotifySearch3" placeholder="Buscar canción 3 (opcional)..."
+                oninput="spotifySearch(3)"
+                autocomplete="off"
+                style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem 0.9rem 2.8rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;transition:border-color 0.3s;">
+              <span style="position:absolute;left:0.9rem;top:50%;transform:translateY(-50%);font-size:0.9rem;opacity:0.5;">🔍</span>
+            </div>
+            <div id="spotifyResults3" style="display:none;background:rgba(20,14,8,0.97);border:1px solid rgba(184,150,90,0.25);border-top:none;max-height:260px;overflow-y:auto;"></div>
+            <div id="selectedSong3" style="display:none;"></div>
+            <input type="hidden" id="cancion3" value="">
           </div>
         </div>
 
@@ -1261,7 +1295,85 @@
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-  // ── MUSIC PLAYER — YouTube IFrame API ────────────────────────
+  // ── SPOTIFY SEARCH ───────────────────────────────────────────
+  const SPOTIFY_FN = 'https://wttqmlwrayotffeaeary.supabase.co/functions/v1/spotify-search';
+  const spotifyTimers = {};
+
+  async function spotifySearch(slot) {
+    const q = document.getElementById(`spotifySearch${slot}`).value.trim();
+    const resultsBox = document.getElementById(`spotifyResults${slot}`);
+    clearTimeout(spotifyTimers[slot]);
+
+    if (q.length < 2) { resultsBox.style.display = 'none'; return; }
+
+    spotifyTimers[slot] = setTimeout(async () => {
+      resultsBox.style.display = 'block';
+      resultsBox.innerHTML = '<div style="padding:0.8rem 1rem;color:rgba(250,246,240,0.4);font-style:italic;font-size:0.9rem;">Buscando en Spotify...</div>';
+
+      try {
+        const res = await fetch(`${SPOTIFY_FN}?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+
+        if (!data.tracks || !data.tracks.length) {
+          resultsBox.innerHTML = '<div style="padding:0.8rem 1rem;color:rgba(250,246,240,0.4);font-style:italic;font-size:0.9rem;">No se encontraron resultados.</div>';
+          return;
+        }
+
+        resultsBox.innerHTML = data.tracks.map(t => `
+          <div onclick="selectSong(${slot}, '${t.id}', ${JSON.stringify(`${t.title} — ${t.artist}`).replace(/'/g,"\\'")},'${t.image || ''}')"
+            style="display:flex;align-items:center;gap:0.8rem;padding:0.7rem 1rem;cursor:pointer;border-bottom:1px solid rgba(184,150,90,0.1);transition:background 0.2s;"
+            onmouseover="this.style.background='rgba(184,150,90,0.1)'"
+            onmouseout="this.style.background='transparent'">
+            ${t.image
+              ? `<img src="${t.image}" style="width:40px;height:40px;object-fit:cover;flex-shrink:0;border:1px solid rgba(184,150,90,0.2);">`
+              : `<div style="width:40px;height:40px;background:rgba(184,150,90,0.1);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🎵</div>`
+            }
+            <div style="overflow:hidden;">
+              <div style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.title}</div>
+              <div style="font-size:0.8rem;color:rgba(250,246,240,0.5);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.artist} · ${t.album}</div>
+            </div>
+          </div>`).join('');
+      } catch(e) {
+        resultsBox.innerHTML = '<div style="padding:0.8rem 1rem;color:#e07070;font-size:0.9rem;">Error al buscar. Intenta de nuevo.</div>';
+      }
+    }, 400);
+  }
+
+  function selectSong(slot, id, label, image) {
+    // Guardar valor en hidden input
+    document.getElementById(`cancion${slot}`).value = label;
+
+    // Limpiar búsqueda
+    document.getElementById(`spotifySearch${slot}`).value = '';
+    document.getElementById(`spotifyResults${slot}`).style.display = 'none';
+
+    // Mostrar canción seleccionada
+    const box = document.getElementById(`selectedSong${slot}`);
+    box.style.display = 'flex';
+    box.style.alignItems = 'center';
+    box.style.gap = '0.8rem';
+    box.style.padding = '0.7rem 1rem';
+    box.style.marginTop = '0.4rem';
+    box.style.background = 'rgba(184,150,90,0.08)';
+    box.style.border = '1px solid rgba(184,150,90,0.3)';
+    box.innerHTML = `
+      ${image
+        ? `<img src="${image}" style="width:36px;height:36px;object-fit:cover;border:1px solid rgba(184,150,90,0.3);flex-shrink:0;">`
+        : `<div style="width:36px;height:36px;background:rgba(184,150,90,0.1);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">🎵</div>`
+      }
+      <div style="flex:1;overflow:hidden;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
+      </div>
+      <button onclick="clearSong(${slot})" style="background:none;border:none;color:rgba(250,246,240,0.4);cursor:pointer;font-size:0.8rem;font-family:'Cinzel',serif;letter-spacing:0.2em;flex-shrink:0;">✕</button>
+    `;
+  }
+
+  function clearSong(slot) {
+    document.getElementById(`cancion${slot}`).value = '';
+    document.getElementById(`selectedSong${slot}`).style.display = 'none';
+    document.getElementById(`selectedSong${slot}`).innerHTML = '';
+    document.getElementById(`spotifySearch${slot}`).value = '';
+  }
   let ytPlayer = null;
   let isPlaying = false;
 
