@@ -861,16 +861,6 @@
 
       <div class="rsvp-form" id="extraFields">
         <div class="field-group">
-          <label class="field-label">Número de acompañantes</label>
-          <select id="acompanantes" style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;-webkit-appearance:none;">
-            <option value="0">Solo yo</option>
-            <option value="1">Yo + 1</option>
-            <option value="2">Yo + 2</option>
-            <option value="3">Yo + 3</option>
-            <option value="4">Yo + 4 o más</option>
-          </select>
-        </div>
-        <div class="field-group">
           <label class="field-label">¿Restricción alimentaria?</label>
           <input type="text" id="restriccion" placeholder="Vegano, sin gluten, alergias... (opcional)"
             style="background:rgba(255,255,255,0.06);border:1px solid rgba(184,150,90,0.3);color:var(--cream);padding:0.9rem 1.2rem;font-family:'EB Garamond',serif;font-size:1rem;outline:none;width:100%;">
@@ -1001,10 +991,11 @@
   </div>
 </div>
 
-<!-- YouTube iframe oculto para audio -->
-<iframe id="ytPlayer" width="0" height="0"
-  src="https://www.youtube.com/embed/3sUoxPSS7Yg?enablejsapi=1&autoplay=0&controls=0&loop=1&playlist=3sUoxPSS7Yg"
-  allow="autoplay" style="position:absolute;opacity:0;pointer-events:none;" frameborder="0"></iframe>
+<!-- Audio via SoundCloud embed (más confiable que YouTube en sitios externos) -->
+<iframe id="scPlayer" width="0" height="0" scrolling="no" frameborder="no" allow="autoplay"
+  src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/1076226451&color=%23b8965a&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
+  style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;">
+</iframe>
 
 <div class="divider"></div>
 
@@ -1113,7 +1104,6 @@
       document.getElementById('guestName').textContent = nombre;
 
       // Pre-fill si ya confirmó
-      if (currentGuest.acompanantes != null) document.getElementById('acompanantes').value = currentGuest.acompanantes;
       if (currentGuest.restriccion_alimentaria) document.getElementById('restriccion').value = currentGuest.restriccion_alimentaria;
       if (songs.length) {
         document.getElementById('cancion1').value = songs[0].cancion_1 || '';
@@ -1168,46 +1158,70 @@
     btn.disabled = true;
 
     try {
-      // 1. Actualizar asistencia del invitado
+      // 1. Actualizar asistencia
       const updateBody = {
         asistencia: asistenciaSeleccionada,
         confirmado_en: new Date().toISOString()
       };
       if (asistenciaSeleccionada === 'confirmado') {
-        updateBody.acompanantes = parseInt(document.getElementById('acompanantes').value) || 0;
-        updateBody.restriccion_alimentaria = document.getElementById('restriccion').value || null;
+        updateBody.restriccion_alimentaria = document.getElementById('restriccion').value.trim() || null;
       }
-      await supaFetch(`/rest/v1/invitados?cedula=eq.${currentGuest.cedula}`, {
+
+      const patchRes = await fetch(`${SUPA_URL}/rest/v1/invitados?cedula=eq.${currentGuest.cedula}`, {
         method: 'PATCH',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': 'Bearer ' + SUPA_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
         body: JSON.stringify(updateBody)
       });
+      if (!patchRes.ok) throw new Error('Error actualizando asistencia');
 
       if (asistenciaSeleccionada === 'confirmado') {
-        // 2. Guardar canciones (upsert)
+        // 2. Guardar canciones (upsert por cedula)
         const c1 = document.getElementById('cancion1').value.trim();
         const c2 = document.getElementById('cancion2').value.trim();
         const c3 = document.getElementById('cancion3').value.trim();
         if (c1 || c2 || c3) {
-          await supaFetch(`/rest/v1/canciones`, {
+          const songRes = await fetch(`${SUPA_URL}/rest/v1/canciones`, {
             method: 'POST',
-            headers: { 'Prefer': 'resolution=merge-duplicates' },
-            body: JSON.stringify({ cedula: currentGuest.cedula, cancion_1: c1||null, cancion_2: c2||null, cancion_3: c3||null })
+            headers: {
+              'apikey': SUPA_KEY,
+              'Authorization': 'Bearer ' + SUPA_KEY,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates,return=minimal'
+            },
+            body: JSON.stringify({
+              cedula: currentGuest.cedula,
+              cancion_1: c1 || null,
+              cancion_2: c2 || null,
+              cancion_3: c3 || null
+            })
           });
+          if (!songRes.ok) throw new Error('Error guardando canciones');
         }
 
         // 3. Guardar comentario
         const comentario = document.getElementById('comentario').value.trim();
         if (comentario) {
-          await supaFetch(`/rest/v1/comentarios`, {
+          const comRes = await fetch(`${SUPA_URL}/rest/v1/comentarios`, {
             method: 'POST',
+            headers: {
+              'apikey': SUPA_KEY,
+              'Authorization': 'Bearer ' + SUPA_KEY,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
             body: JSON.stringify({ cedula: currentGuest.cedula, comentario })
           });
+          if (!comRes.ok) throw new Error('Error guardando comentario');
         }
       }
 
       // 4. Mostrar éxito
       document.getElementById('step-form').style.display = 'none';
-      const success = document.getElementById('rsvpSuccess');
       if (asistenciaSeleccionada === 'confirmado') {
         document.getElementById('successEmoji').textContent = '🥂';
         document.getElementById('successMsg').textContent = '¡Asistencia confirmada!';
@@ -1217,10 +1231,10 @@
         document.getElementById('successMsg').textContent = 'Gracias por avisarnos';
         document.getElementById('successSub').innerHTML = 'Lamentamos que no puedas acompañarnos,<br>pero te llevaremos en el corazón ese día.';
       }
-      success.style.display = 'block';
+      document.getElementById('rsvpSuccess').style.display = 'block';
 
     } catch(e) {
-      showError('Ocurrió un error. Por favor intenta de nuevo.');
+      showError('Ocurrió un error: ' + e.message + '. Por favor intenta de nuevo.');
       btn.textContent = 'Guardar Confirmación';
       btn.disabled = false;
     }
@@ -1250,29 +1264,44 @@
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-  // MUSIC PLAYER (YouTube iframe API)
-  let player, isPlaying = false;
+  // MUSIC PLAYER (SoundCloud Widget API)
+  let scWidget = null;
+  let isPlaying = false;
 
-  function onYouTubeIframeAPIReady() {
-    player = new YT.Player('ytPlayer', {
-      events: { 'onReady': () => {} }
-    });
-  }
+  window.addEventListener('load', () => {
+    const iframe = document.getElementById('scPlayer');
+    if (window.SC && window.SC.Widget) {
+      scWidget = window.SC.Widget(iframe);
+      scWidget.bind(window.SC.Widget.Events.FINISH, () => {
+        scWidget.seekTo(0);
+        scWidget.play();
+      });
+    }
+  });
 
-  // Load YouTube API
-  const tag = document.createElement('script');
-  tag.src = 'https://www.youtube.com/iframe_api';
-  document.head.appendChild(tag);
+  // Cargar SoundCloud Widget API
+  (function() {
+    const sc = document.createElement('script');
+    sc.src = 'https://w.soundcloud.com/player/api.js';
+    sc.onload = () => {
+      const iframe = document.getElementById('scPlayer');
+      scWidget = window.SC.Widget(iframe);
+      scWidget.bind(window.SC.Widget.Events.FINISH, () => {
+        scWidget.seekTo(0); scWidget.play();
+      });
+    };
+    document.head.appendChild(sc);
+  })();
 
   function toggleMusic() {
-    if (!player || typeof player.playVideo !== 'function') return;
+    if (!scWidget) return;
     if (isPlaying) {
-      player.pauseVideo();
+      scWidget.pause();
       document.getElementById('musicBtn').textContent = '▶';
       document.getElementById('musicBars').classList.add('paused');
       isPlaying = false;
     } else {
-      player.playVideo();
+      scWidget.play();
       document.getElementById('musicBtn').textContent = '⏸';
       document.getElementById('musicBars').classList.remove('paused');
       isPlaying = true;
