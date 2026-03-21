@@ -61,18 +61,17 @@
     background: var(--deep);
   }
 
-  /* Video de fondo */
-  .hero-video {
+  /* YouTube video de fondo */
+  #heroBgVideo {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
     z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
     opacity: 0;
     transition: opacity 1.5s ease;
   }
-  .hero-video.loaded { opacity: 1; }
+  #heroBgVideo.ready { opacity: 1; }
 
   /* Overlay degradado sobre el video */
   .hero-overlay {
@@ -736,13 +735,11 @@
 
 <!-- HERO -->
 <div class="hero">
-  <!-- Video de fondo -->
-  <video class="hero-video" id="heroVideo" autoplay muted loop playsinline preload="auto"
-    oncanplay="this.classList.add('loaded')">
-    <source src="/video/hero.mp4" type="video/mp4">
-    <source src="/video/hero.webm" type="video/webm">
-  </video>
-  <!-- Fallback si no hay video -->
+  <!-- Video de fondo via YouTube (sin sonido, en loop) -->
+  <div id="heroBgVideo" style="position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;">
+    <div id="ytBgPlayer" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);min-width:177.78vh;min-height:100vh;width:100vw;height:56.25vw;"></div>
+  </div>
+  <!-- Fallback mientras carga -->
   <div class="hero-fallback" id="heroFallback"></div>
   <!-- Overlay oscuro -->
   <div class="hero-overlay"></div>
@@ -1539,11 +1536,44 @@
     box.style.display = 'none';
     box.innerHTML = '';
   }
+
   let ytPlayer = null;
+  let ytBg = null;
   let isPlaying = false;
   let musicTriggered = false;
 
   window.onYouTubeIframeAPIReady = function() {
+
+    // ── VIDEO DE FONDO (silenciado, loop automático) ────────────
+    ytBg = new YT.Player('ytBgPlayer', {
+      videoId: 'HyOKxKTb5WY',
+      playerVars: {
+        autoplay: 1, mute: 1, loop: 1,
+        controls: 0, disablekb: 1, fs: 0,
+        iv_load_policy: 3, modestbranding: 1,
+        playsinline: 1, rel: 0, showinfo: 0,
+        playlist: 'HyOKxKTb5WY'
+      },
+      events: {
+        onReady: function(e) {
+          e.target.mute();
+          e.target.playVideo();
+          setTimeout(() => {
+            const bg = document.getElementById('heroBgVideo');
+            if (bg) bg.classList.add('ready');
+            const fb = document.getElementById('heroFallback');
+            if (fb) fb.style.opacity = '0';
+          }, 800);
+        },
+        onStateChange: function(e) {
+          if (e.data === YT.PlayerState.ENDED || e.data === 2) {
+            setTimeout(() => { try { e.target.playVideo(); } catch(x){} }, 200);
+          }
+        }
+      }
+    });
+
+    // ── MÚSICA (se activa al primer scroll/clic) ─────────────────
     ytPlayer = new YT.Player('ytPlayer', {
       width: '1', height: '1',
       videoId: 'u2ah9tWTkmk',
@@ -1553,16 +1583,11 @@
         playsinline: 1, rel: 0, playlist: 'u2ah9tWTkmk'
       },
       events: {
-        onReady: function() {
-          // Intentar autoplay inmediato (funciona en algunos navegadores)
-          try { ytPlayer.playVideo(); } catch(e) {}
-        },
         onStateChange: function(e) {
           if (e.data === YT.PlayerState.PLAYING) {
             document.getElementById('musicBtn').textContent = '⏸';
             document.getElementById('musicBars').classList.remove('paused');
-            isPlaying = true;
-            musicTriggered = true;
+            isPlaying = true; musicTriggered = true;
           }
           if (e.data === YT.PlayerState.ENDED) {
             ytPlayer.seekTo(0); ytPlayer.playVideo();
@@ -1578,7 +1603,7 @@
     document.head.appendChild(tag);
   })();
 
-  // Autoplay al primer scroll, clic o toque del usuario
+  // Música arranca al primer scroll, clic o toque
   function triggerMusic() {
     if (musicTriggered) return;
     if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
@@ -1602,16 +1627,6 @@
       ytPlayer.playVideo();
       musicTriggered = true;
     }
-  }
-
-  // Video de fondo — ocultar fallback cuando cargue
-  const hv = document.getElementById('heroVideo');
-  if (hv) {
-    hv.addEventListener('canplay', () => {
-      const fb = document.getElementById('heroFallback');
-      if (fb) fb.style.opacity = '0';
-    });
-    hv.addEventListener('error', () => { hv.style.display = 'none'; });
   }
 </script>
 </body>
